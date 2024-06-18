@@ -19,7 +19,7 @@ This repository contains:
 
 ## Training
 
-### Training GenTron T2I
+### Training GenTron
 
 ```bash
 python train.py --data_path /path/to/ImageNet/train
@@ -30,4 +30,3 @@ python train.py --data_path /path/to/ImageNet/train
 - [DiT](https://github.com/facebookresearch/DiT)
 - [fast-DiT](https://github.com/chuanyangjin/fast-DiT)
 - [PixArt-α](https://github.com/PixArt-alpha/PixArt-alpha)
-

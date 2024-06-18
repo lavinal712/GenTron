@@ -367,7 +367,7 @@ class DiT(nn.Module):
         return torch.cat([eps, rest], dim=1)
 
 
-class GenTronT2I(nn.Module):
+class GenTron(nn.Module):
     def __init__(
             self,
             input_size=32,
@@ -575,10 +575,14 @@ DiT_models = {
 }
 
 
-def GenTronT2I_XL_2(**kwargs):
-    return GenTronT2I(depth=28, hidden_size=1152, patch_size=2, num_heads=16, use_cross_attention=False, **kwargs)
+def GenTron_XL_2(**kwargs):
+    return GenTron(depth=28, hidden_size=1152, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
+
+def GenTron_G_2(**kwargs):
+    return GenTron(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
 
 
-GenTronT2I_models = {
-    'GenTronT2I-XL/2': GenTronT2I_XL_2,
+GenTron_models = {
+    'GenTron-XL/2': GenTron_XL_2,
+    'GenTron-G/2': GenTron_G_2,
 }

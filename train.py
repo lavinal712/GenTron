@@ -16,7 +16,7 @@ from torchvision.datasets import ImageFolder
 from transformers import CLIPTokenizer, CLIPTextModel
 
 from diffusion import create_diffusion
-from models import GenTronT2I_models
+from models import GenTron_models
 
 
 @torch.no_grad()
@@ -56,7 +56,7 @@ def parse_args(input_args=None):
 
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--results_dir", type=str, default="results")
-    parser.add_argument("--model", type=str, choices=list(GenTronT2I_models.keys()), default="GenTronT2I-XL/2")
+    parser.add_argument("--model", type=str, choices=list(GenTron_models.keys()), default="GenTron-XL/2")
     parser.add_argument("--image_size", type=int, choices=[256, 512], default=256)
     parser.add_argument("--num_classes", type=int, default=1000)
     parser.add_argument("--epochs", type=int, default=1400)
@@ -92,7 +92,7 @@ def main(args=None):
 
     assert args.image_size % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
     latent_size = args.image_size // 8
-    model = GenTronT2I_models[args.model](
+    model = GenTron_models[args.model](
         input_size=latent_size,
     )
     ema = deepcopy(model).to(device)
