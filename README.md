@@ -22,7 +22,7 @@ This repository contains:
 ### Training GenTron
 
 ```bash
-python train.py --data_path /path/to/ImageNet/train
+accelerate launch --mixed_precision fp16 train.py --data_path /path/to/ImageNet/train
 ```
 
 ## Acknowledgments
