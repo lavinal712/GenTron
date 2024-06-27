@@ -2,7 +2,6 @@ import argparse
 import numpy as np
 import os
 import torch
-import torch.distributed as dist
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from collections import OrderedDict
@@ -11,7 +10,7 @@ from diffusers.models import AutoencoderKL
 from glob import glob
 from PIL import Image
 from time import time
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from transformers import CLIPTokenizer, CLIPTextModel

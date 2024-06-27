@@ -178,7 +178,7 @@ class DiTBlock(nn.Module):
         return x
 
 
-class GenTronAdaLN2DBlock(nn.Module):
+class GenTronT2IAdaLN2DBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, **block_kwargs):
         super().__init__()
         self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
@@ -199,7 +199,7 @@ class GenTronAdaLN2DBlock(nn.Module):
         return x
 
 
-class GenTronCrossAttn2DBlock(nn.Module):
+class GenTronT2ICrossAttn2DBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, **block_kwargs):
         super().__init__()
         self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
@@ -219,6 +219,33 @@ class GenTronCrossAttn2DBlock(nn.Module):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn1(modulate(self.norm1(x), shift_msa, scale_msa))
         x = x + self.attn2(self.norm3(x), y, y, key_padding_mask=mask)[0]
+        x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
+        return x
+
+
+class GenTronT2VBlock(nn.Module):
+    def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, **block_kwargs):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.attn1 = Attention(hidden_size, num_heads=num_heads, qkv_bias=True, **block_kwargs)
+        self.norm3 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.attn2 = nn.MultiheadAttention(hidden_size, num_heads=num_heads, bias=True, add_bias_kv=True, batch_first=True)
+        self.norm4 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.attn3 = nn.MultiheadAttention(hidden_size, num_heads=num_heads, bias=True, add_bias_kv=True, batch_first=True)
+        self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        mlp_hidden_dim = int(hidden_size * mlp_ratio)
+        approx_gelu = lambda: nn.GELU(approximate="tanh")
+        self.mlp = Mlp(in_features=hidden_size, hidden_features=mlp_hidden_dim, act_layer=approx_gelu, drop=0)
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(hidden_size, 6 * hidden_size, bias=True)
+        )
+
+    def forward(self, x, c, y, mask=None, motion_free_mask=None):
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
+        x = x + gate_msa.unsqueeze(1) * self.attn1(modulate(self.norm1(x), shift_msa, scale_msa))
+        x = x + self.attn2(self.norm3(x), y, y, key_padding_mask=mask)[0]
+        x = x + self.attn3(self.norm4(x), y, y, key_padding_mask=mask, attn_mask=motion_free_mask)[0]
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -367,20 +394,20 @@ class DiT(nn.Module):
         return torch.cat([eps, rest], dim=1)
 
 
-class GenTron(nn.Module):
+class GenTronT2I(nn.Module):
     def __init__(
-            self,
-            input_size=32,
-            patch_size=2,
-            in_channels=4,
-            embedding_dim=768,
-            hidden_size=1152,
-            depth=28,
-            num_heads=16,
-            mlp_ratio=4.0,
-            dropout_prob=0.1,
-            learn_sigma=True,
-            use_cross_attention=True,
+        self,
+        input_size=32,
+        patch_size=2,
+        in_channels=4,
+        embedding_dim=768,
+        hidden_size=1152,
+        depth=28,
+        num_heads=16,
+        mlp_ratio=4.0,
+        dropout_prob=0.1,
+        learn_sigma=True,
+        use_cross_attention=True,
     ):
         super().__init__()
         self.learn_sigma = learn_sigma
@@ -397,8 +424,8 @@ class GenTron(nn.Module):
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, hidden_size), requires_grad=False)
 
         self.blocks = nn.ModuleList([
-            GenTronCrossAttn2DBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) if use_cross_attention else
-            GenTronAdaLN2DBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
+            GenTronT2ICrossAttn2DBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) if use_cross_attention else
+            GenTronT2IAdaLN2DBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
         ])
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
         self.initialize_weights()
@@ -449,7 +476,8 @@ class GenTron(nn.Module):
         x = self.x_embedder(x) + self.pos_embed
         t = self.t_embedder(t)
         y = self.y_embedder(y, self.training)
-        y_pool = torch.mean(y, dim=1)
+        mask_float = mask.float().unsqueeze(-1)
+        y_pool = (y * mask_float).sum(dim=1) / mask_float.sum(dim=1)
         c = t + y_pool
         for block in self.blocks:
             if self.use_cross_attention:
@@ -463,12 +491,31 @@ class GenTron(nn.Module):
     def forward_with_cfg(self, x, t, y, cfg_scale, mask=None):
         half = x[: len(x) // 2]
         combined = torch.cat([half, half], dim=0)
-        model_out = self.forward(combined, t, y)
+        model_out = self.forward(combined, t, y, mask)
         eps, rest = model_out[:, :3], model_out[:, 3:]
         cond_eps, uncond_eps = torch.split(eps, len(eps) // 2, dim=0)
         half_eps = uncond_eps + cfg_scale * (cond_eps - uncond_eps)
         eps = torch.cat([half_eps, half_eps], dim=0)
         return torch.cat([eps, rest], dim=1)
+
+
+class GenTronT2V(nn.Module):
+    def __init__(
+        self,
+        input_size=32,
+        patch_size=2,
+        in_channels=4,
+        embedding_dim=768,
+        hidden_size=1152,
+        depth=28,
+        num_heads=16,
+        mlp_ratio=4.0,
+        dropout_prob=0.1,
+    ):
+        super().__init__()
+
+    def forward(self):
+        pass
 
 
 #################################################################################
@@ -575,14 +622,14 @@ DiT_models = {
 }
 
 
-def GenTron_XL_2(**kwargs):
-    return GenTron(depth=28, hidden_size=1152, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
+def GenTronT2I_XL_2(**kwargs):
+    return GenTronT2I(depth=28, hidden_size=1152, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
 
-def GenTron_G_2(**kwargs):
-    return GenTron(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
+def GenTronT2I_G_2(**kwargs):
+    return GenTronT2I(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
 
 
 GenTron_models = {
-    'GenTron-XL/2': GenTron_XL_2,
-    'GenTron-G/2': GenTron_G_2,
+    'GenTron-T2I-XL/2': GenTronT2I_XL_2,
+    'GenTron-T2I-G/2': GenTronT2I_G_2,
 }
