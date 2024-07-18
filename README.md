@@ -17,6 +17,16 @@ This repository contains:
 
 [DiT](https://github.com/facebookresearch/DiT) and [PixArt-α](https://github.com/PixArt-alpha/PixArt-alpha)
 
+## Sampling
+
+```bash
+python sample.py --image_size 512 --seed 1
+```
+
+```bash
+python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model.pt
+```
+
 ## Training
 
 ### Training GenTron
