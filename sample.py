@@ -62,7 +62,7 @@ def main(args):
     y = torch.tensor(class_labels, device=device)
     y = list(map(lambda id: id2label[int(id)], y))
     y_inputs = tokenizer(y, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
-    y_null_inputs = tokenizer([] * n, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
+    y_null_inputs = tokenizer([""] * n, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
     tokens = y_inputs["input_ids"].to(device)
     uncond_tokens = y_null_inputs["input_ids"].to(device)
     y = text_encoder(input_ids=tokens).last_hidden_state
@@ -85,5 +85,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    args = parser.parse_args()
+    args = parse_args()
     main(args)
