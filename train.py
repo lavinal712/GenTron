@@ -13,7 +13,7 @@ from time import time
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, CLIPTextModel
+from transformers import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM, CLIPTextModel
 
 from diffusion import create_diffusion
 from models import GenTron_models
@@ -93,8 +93,11 @@ def main(args=None):
 
     assert args.image_size % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
     latent_size = args.image_size // 8
+    text_config = AutoConfig.from_pretrained(args.text_encoder)
+    embed_dim = text_config.d_model if args.model == "GenTron-T2I-G/2" else text_config.projection_dim
     model = GenTron_models[args.model](
         input_size=latent_size,
+        embedding_dim=embed_dim,
     )
     ema = deepcopy(model).to(device)
     requires_grad(ema, False)
