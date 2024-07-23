@@ -13,7 +13,7 @@ from time import time
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-from transformers import CLIPTokenizer, CLIPTextModel
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, CLIPTextModel
 
 from diffusion import create_diffusion
 from models import GenTron_models
@@ -102,8 +102,11 @@ def main(args=None):
     diffusion = create_diffusion(timestep_respacing="")
     vae = AutoencoderKL.from_pretrained(args.vae).to(device)
     requires_grad(vae, False)
-    tokenizer = CLIPTokenizer.from_pretrained(args.text_encoder)
-    text_encoder = CLIPTextModel.from_pretrained(args.text_encoder).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(args.text_encoder)
+    if args.model == "GenTron-T2I-G/2":
+        text_encoder = AutoModelForSeq2SeqLM.from_pretrained(args.text_encoder).to(device)
+    else:
+        text_encoder = CLIPTextModel.from_pretrained(args.text_encoder).to(device)
     requires_grad(text_encoder, False)
     with open("data/imagenet1000_clsidx_to_labels.txt", "r") as f:
         id2label = eval(f.read())
