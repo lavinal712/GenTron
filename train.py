@@ -1,4 +1,5 @@
 import argparse
+import logging
 import numpy as np
 import os
 import torch
@@ -34,6 +35,17 @@ def requires_grad(model, flag=True):
         p.requires_grad = flag
 
 
+def create_logger(logging_dir):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[\033[34m%(asctime)s\033[0m] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[logging.StreamHandler(), logging.FileHandler(f"{logging_dir}/log.txt")]
+    )
+    logger = logging.getLogger(__name__)
+    return logger
+
+
 def center_crop_arr(pil_image, image_size):
     while min(*pil_image.size) >= 2 * image_size:
         pil_image = pil_image.resize(
@@ -60,7 +72,7 @@ def parse_args(input_args=None):
     parser.add_argument("--image_size", type=int, choices=[256, 512], default=256)
     parser.add_argument("--num_classes", type=int, default=1000)
     parser.add_argument("--epochs", type=int, default=1400)
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--vae", type=str, default="stabilityai/sd-vae-ft-ema")
     parser.add_argument("--text_encoder", type=str, default="openai/clip-vit-large-patch14")
@@ -90,6 +102,8 @@ def main(args=None):
         experiment_dir = f"{args.results_dir}/{experiment_index:03d}-{model_string_name}"
         checkpoint_dir = f"{experiment_dir}/checkpoints"
         os.makedirs(checkpoint_dir, exist_ok=True)
+        logger = create_logger(experiment_dir)
+        logger.info(f"Experiment directory created at {experiment_dir}")
 
     assert args.image_size % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
     latent_size = args.image_size // 8
@@ -114,7 +128,7 @@ def main(args=None):
     with open("data/imagenet1000_clsidx_to_labels.txt", "r") as f:
         id2label = eval(f.read())
     if accelerator.is_main_process:
-        print(f"GenTron Parameters: {sum(p.numel() for p in model.parameters()):,}")
+        logger.info(f"GenTron Parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0)
 
@@ -133,6 +147,8 @@ def main(args=None):
         pin_memory=True,
         drop_last=True
     )
+    if accelerator.is_main_process:
+        logger.info(f"Dataset contains {len(dataset):,} images ({args.data_path})")
 
     update_ema(ema, model, decay=0)
     model.train()
@@ -144,7 +160,11 @@ def main(args=None):
     running_loss = 0
     start_time = time()
 
+    if accelerator.is_main_process:
+        logger.info(f"Training for {args.epochs} epochs...")
     for epoch in range(args.epochs):
+        if accelerator.is_main_process:
+            logger.info(f"Beginning epoch {epoch}...")
         for x, y in loader:
             x = x.to(device)
             with torch.no_grad():
@@ -172,7 +192,7 @@ def main(args=None):
                 avg_loss = torch.tensor(running_loss / log_steps, device=device)
                 avg_loss = avg_loss.item()
                 if accelerator.is_main_process:
-                    print(f"(step={train_steps:07d}) Train Loss: {avg_loss:.4f}, Train Steps/Sec: {steps_per_sec:.2f}")
+                    logger.info(f"(step={train_steps:07d}) Train Loss: {avg_loss:.4f}, Train Steps/Sec: {steps_per_sec:.2f}")
                 running_loss = 0
                 log_steps = 0
                 start_time = time()
@@ -186,8 +206,12 @@ def main(args=None):
                 }
                 checkpoint_path = f"{checkpoint_dir}/{train_steps:07d}.pt"
                 torch.save(checkpoint, checkpoint_path)
+                logger.info(f"Saved checkpoint to {checkpoint_path}")
 
     model.eval()
+
+    if accelerator.is_main_process:
+        logger.info("Done!")
 
 
 if __name__ == "__main__":
