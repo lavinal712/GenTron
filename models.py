@@ -480,10 +480,7 @@ class GenTronT2I(nn.Module):
         y_pool = (y * mask_float).sum(dim=1) / mask_float.sum(dim=1)
         c = t + y_pool
         for block in self.blocks:
-            if self.use_cross_attention:
-                x = block(x, c, y, mask)
-            else:
-                x = block(x, c)
+            x = block(x, c, y, mask) if self.use_cross_attention else block(x, c)
         x = self.final_layer(x, c)
         x = self.unpatchify(x)
         return x
@@ -492,7 +489,7 @@ class GenTronT2I(nn.Module):
         half = x[: len(x) // 2]
         combined = torch.cat([half, half], dim=0)
         model_out = self.forward(combined, t, y, mask)
-        eps, rest = model_out[:, :3], model_out[:, 3:]
+        eps, rest = model_out[:, :self.in_channels], model_out[:, self.in_channels:]
         cond_eps, uncond_eps = torch.split(eps, len(eps) // 2, dim=0)
         half_eps = uncond_eps + cfg_scale * (cond_eps - uncond_eps)
         eps = torch.cat([half_eps, half_eps], dim=0)
