@@ -32,13 +32,17 @@ python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model
 ### Preparation
 
 ```bash
-torchrun --nnodes=1 --nproc_per_node=1 extract_features.py --data_path /path/to/imagenet/train --features_path /path/to/store/features
+torchrun --nnodes=1 --nproc_per_node=1 extract_features.py --data_path /path/to/ImageNet/train --features_path /path/to/ImageNet/features
 ```
 
 ### Training GenTron
 
 ```bash
 accelerate launch --mixed_precision fp16 train.py --data_path /path/to/ImageNet/train
+```
+
+```bash
+accelerate launch --mixed_precision fp16 train_v2.py --features_path /path/to/ImageNet/features
 ```
 
 ## Acknowledgments
