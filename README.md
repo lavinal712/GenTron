@@ -29,6 +29,12 @@ python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model
 
 ## Training
 
+### Preparation
+
+```bash
+torchrun --nnodes=1 --nproc_per_node=1 extract_features.py --data_path /path/to/imagenet/train --features_path /path/to/store/features
+```
+
 ### Training GenTron
 
 ```bash
