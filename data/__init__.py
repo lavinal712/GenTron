@@ -24,22 +24,26 @@ def center_crop_arr(pil_image, image_size):
 
 
 class CustomDataset(Dataset):
-    def __init__(self, features_dir, labels_dir):
+    def __init__(self, features_dir, captions_dir, masks_dir):
         self.features_dir = features_dir
-        self.labels_dir = labels_dir
+        self.captions_dir = captions_dir
+        self.masks_dir = masks_dir
 
         self.features_files = sorted(os.listdir(features_dir))
-        self.labels_files = sorted(os.listdir(labels_dir))
+        self.captions_files = sorted(os.listdir(captions_dir))
+        self.masks_files = sorted(os.listdir(masks_dir))
 
     def __len__(self):
-        assert len(self.features_files) == len(self.labels_files), \
-            "Number of feature files and label files should be same"
+        assert len(self.features_files) == len(self.captions_files) and len(self.captions_files) == len(self.masks_files), \
+            "Number of feature files, caption files and mask files should be same"
         return len(self.features_files)
 
     def __getitem__(self, idx):
         feature_file = self.features_files[idx]
-        label_file = self.labels_files[idx]
+        caption_file = self.captions_files[idx]
+        mask_file = self.masks_files[idx]
 
         features = np.load(os.path.join(self.features_dir, feature_file))
-        labels = np.load(os.path.join(self.labels_dir, label_file))
-        return torch.from_numpy(features), torch.from_numpy(labels)
+        captions = np.load(os.path.join(self.captions_dir, caption_file))
+        masks = np.load(os.path.join(self.masks_dir, mask_file))
+        return torch.from_numpy(features), torch.from_numpy(captions), torch.from_numpy(masks)
