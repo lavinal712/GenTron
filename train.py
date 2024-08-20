@@ -3,6 +3,8 @@ import logging
 import numpy as np
 import os
 import torch
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from collections import OrderedDict

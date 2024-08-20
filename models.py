@@ -529,7 +529,6 @@ class GenTronT2V(nn.Module):
         self.y_embedder = TextEmbedder(embedding_dim, hidden_size, dropout_prob)
         num_patches = self.x_embedder.num_patches
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, hidden_size), requires_grad=False)
-        self.motion_free_mask = torch.eye(num_frames).bool()
 
         self.blocks = nn.ModuleList([
             GenTronT2VBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
@@ -567,8 +566,19 @@ class GenTronT2V(nn.Module):
         nn.init.constant_(self.final_layer.adaLN_modulation[-1].bias, 0)
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
+    
+    def unpatchify(self, x):
+        c = self.out_channels
+        p = self.x_embedder.patch_size[0]
+        h = w = int(x.shape[1] ** 0.5)
+        assert h * w == x.shape[1]
 
-    def forward(self, x, t, y, mask=None):
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
+        x = torch.einsum('nhwpqc->nchpwq', x)
+        imgs = x.reshape(x.shape[0], c, h * p, h * p)
+        return imgs
+
+    def forward(self, x, t, y, mask=None, motion_free_mask=None):
         x = rearrange(x, "b f c h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
         t = self.t_embedder(t)
@@ -581,15 +591,26 @@ class GenTronT2V(nn.Module):
         y_pool = repeat(y_pool, "b d -> (b f) d", f=self.num_frames)
         c = t + y_pool
         for block in self.blocks:
-            motion_free_mask = np.random.choice(
-                [self.motion_free_mask, torch.ones(self.num_frames, self.num_frames).bool()],
-                p=[self.motion_free_prob, 1 - self.motion_free_prob],
-            )
+            if motion_free_mask is None:
+                motion_free_mask = np.random.choice(
+                    [torch.eye(self.num_frames).bool(), torch.ones(self.num_frames, self.num_frames).bool()],
+                    p=[self.motion_free_prob, 1 - self.motion_free_prob],
+                )
             x = block(x, c, y, self.num_frames, mask, motion_free_mask)
         x = self.final_layer(x, c)
         x = self.unpatchify(x)
         x = rearrange(x, "(b f) c h w -> b f c h w", f=self.num_frames)
         return x
+    
+    def forward_with_cfg_and_mfg(self, x, t, y, cfg_scale, mfg_scale, mask=None, motion_free_mask=None):
+        third = x[: len(x) // 3]
+        combined = torch.cat([third, third, third], dim=0)
+        model_out = self.forward(combined, t, y, mask)
+        eps, rest = model_out[:, :, :self.in_channels], model_out[:, :, self.in_channels:]
+        cond_eps1, cond_eps2, uncond_eps = torch.split(eps, len(eps) // 3, dim=0)
+        third_eps = uncond_eps + cfg_scale * (cond_eps1 - cond_eps2) + mfg_scale * (cond_eps2 - uncond_eps)
+        eps = torch.cat([third_eps, third_eps, third_eps], dim=0)
+        return torch.cat([eps, rest], dim=2)
 
 
 #################################################################################
