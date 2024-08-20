@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
+from einops import rearrange, repeat
 from timm.models.vision_transformer import PatchEmbed, Attention, Mlp
 
 
@@ -241,11 +242,13 @@ class GenTronT2VBlock(nn.Module):
             nn.Linear(hidden_size, 6 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c, y, mask=None, motion_free_mask=None):
+    def forward(self, x, c, y, t, mask=None, motion_free_mask=None):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn1(modulate(self.norm1(x), shift_msa, scale_msa))
         x = x + self.attn2(self.norm3(x), y, y, key_padding_mask=mask)[0]
-        x = x + self.attn3(self.norm4(x), y, y, key_padding_mask=mask, attn_mask=motion_free_mask)[0]
+        x = rearrange(x, "(b t) n d -> (b n) t d", t=t)
+        x = x + self.attn3(self.norm4(x), self.norm4(x), self.norm4(x), attn_mask=motion_free_mask)[0]
+        x = rearrange(x, "(b n) t d -> (b t) n d", t=t)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -507,12 +510,86 @@ class GenTronT2V(nn.Module):
         depth=28,
         num_heads=16,
         mlp_ratio=4.0,
+        num_frames=16,
         dropout_prob=0.1,
+        learn_sigma=True,
+        motion_free_prob=0.1,
     ):
         super().__init__()
+        self.learn_sigma = learn_sigma
+        self.in_channels = in_channels
+        self.out_channels = in_channels * 2 if learn_sigma else in_channels
+        self.patch_size = patch_size
+        self.num_heads = num_heads
+        self.num_frames = num_frames
+        self.motion_free_prob = motion_free_prob
 
-    def forward(self):
-        pass
+        self.x_embedder = PatchEmbed(input_size, patch_size, in_channels, hidden_size)
+        self.t_embedder = TimestepEmbedder(hidden_size)
+        self.y_embedder = TextEmbedder(embedding_dim, hidden_size, dropout_prob)
+        num_patches = self.x_embedder.num_patches
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, hidden_size), requires_grad=False)
+        self.motion_free_mask = torch.eye(num_frames).bool()
+
+        self.blocks = nn.ModuleList([
+            GenTronT2VBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
+        ])
+        self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
+        self.initialize_weights()
+    
+    def initialize_weights(self):
+        def _basic_init(module):
+            if isinstance(module, nn.Linear):
+                torch.nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+
+        self.apply(_basic_init)
+
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.x_embedder.num_patches ** 0.5))
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+
+        w = self.x_embedder.proj.weight.data
+        nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
+        nn.init.constant_(self.x_embedder.proj.bias, 0)
+
+        nn.init.normal_(self.y_embedder.y_proj.fc1.weight, std=0.02)
+        nn.init.normal_(self.y_embedder.y_proj.fc2.weight, std=0.02)
+
+        nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
+        nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
+
+        for block in self.blocks:
+            nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
+            nn.init.constant_(block.adaLN_modulation[-1].bias, 0)
+
+        nn.init.constant_(self.final_layer.adaLN_modulation[-1].weight, 0)
+        nn.init.constant_(self.final_layer.adaLN_modulation[-1].bias, 0)
+        nn.init.constant_(self.final_layer.linear.weight, 0)
+        nn.init.constant_(self.final_layer.linear.bias, 0)
+
+    def forward(self, x, t, y, mask=None):
+        x = rearrange(x, "b f c h w -> (b f) c h w")
+        x = self.x_embedder(x) + self.pos_embed
+        t = self.t_embedder(t)
+        t = repeat(t, "b d -> (b f) d", f=self.num_frames) 
+        y = self.y_embedder(y, self.training)
+        mask_float = mask.float().unsqueeze(-1)
+        y_pool = (y * mask_float).sum(dim=1) / mask_float.sum(dim=1)
+        y = repeat(y, "b l d -> (b f) l d", f=self.num_frames)
+        mask = repeat(mask, "b d -> (b f) d", f=self.num_frames)
+        y_pool = repeat(y_pool, "b d -> (b f) d", f=self.num_frames)
+        c = t + y_pool
+        for block in self.blocks:
+            motion_free_mask = np.random.choice(
+                [self.motion_free_mask, torch.ones(self.num_frames, self.num_frames).bool()],
+                p=[self.motion_free_prob, 1 - self.motion_free_prob],
+            )
+            x = block(x, c, y, self.num_frames, mask, motion_free_mask)
+        x = self.final_layer(x, c)
+        x = self.unpatchify(x)
+        x = rearrange(x, "(b f) c h w -> b f c h w", f=self.num_frames)
+        return x
 
 
 #################################################################################
