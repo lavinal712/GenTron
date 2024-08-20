@@ -34,14 +34,14 @@ class CustomDataset(Dataset):
         self.masks_files = sorted(os.listdir(masks_dir))
 
     def __len__(self):
-        assert len(self.features_files) == len(self.captions_files) and len(self.captions_files) == len(self.masks_files), \
-            "Number of feature files, caption files and mask files should be same"
         return len(self.features_files)
 
     def __getitem__(self, idx):
         feature_file = self.features_files[idx]
-        caption_file = self.captions_files[idx]
-        mask_file = self.masks_files[idx]
+
+        label_idx = int(os.path.splitext(feature_file)[0].split("-")[0])
+        caption_file = self.captions_files[label_idx]
+        mask_file = self.masks_files[label_idx]
 
         features = np.load(os.path.join(self.features_dir, feature_file))
         captions = np.load(os.path.join(self.captions_dir, caption_file))

@@ -149,22 +149,23 @@ def main(args=None):
     for x, y in loader:
         x = x.to(device)
         y = y.to(device)
+        y_int = y.item()
         with torch.no_grad():
             x = vae.encode(x).latent_dist.sample().mul_(0.18215)
-            y = list(map(lambda id: id2label[int(id)], y))
-            y_inputs = tokenizer(y, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
-            tokens = y_inputs["input_ids"].to(device)
-            y = text_encoder(input_ids=tokens).last_hidden_state
-            mask = y_inputs["attention_mask"].bool()
+            if not os.path.exists(f"{args.features_path}/imagenet256_captions/{y_int}.npy"):
+                y = list(map(lambda id: id2label[int(id)], y))
+                y_inputs = tokenizer(y, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
+                tokens = y_inputs["input_ids"].to(device)
+                y = text_encoder(input_ids=tokens).last_hidden_state
+                mask = y_inputs["attention_mask"].bool()
+                
+                y = y.detach().cpu().numpy()
+                np.save(f"{args.features_path}/imagenet256_captions/{y_int}.npy", y)
+                mask = mask.detach().cpu().numpy()
+                np.save(f"{args.features_path}/imagenet256_masks/{y_int}.npy", mask)
             
-        x = x.detach().cpu().numpy()
-        np.save(f'{args.features_path}/imagenet256_features/{train_steps}.npy', x)
-
-        y = y.detach().cpu().numpy()
-        np.save(f'{args.features_path}/imagenet256_captions/{train_steps}.npy', y)
-
-        mask = mask.detach().cpu().numpy()
-        np.save(f'{args.features_path}/imagenet256_masks/{train_steps}.npy', mask)
+            x = x.detach().cpu().numpy()
+            np.save(f"{args.features_path}/imagenet256_features/{y_int}-{train_steps}.npy", x)
             
         train_steps += 1
         print(train_steps)
