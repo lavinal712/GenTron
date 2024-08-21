@@ -150,22 +150,25 @@ def main(args=None):
         x = x.to(device)
         y = y.to(device)
         y_int = y.item()
+        labels = [label.strip() for label in id2label[y.item()].split(",")]
         with torch.no_grad():
             x = vae.encode(x).latent_dist.sample().mul_(0.18215)
-            if not os.path.exists(f"{args.features_path}/imagenet256_captions/{y_int}.npy"):
-                y = list(map(lambda id: id2label[int(id)], y))
-                y_inputs = tokenizer(y, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
-                tokens = y_inputs["input_ids"].to(device)
-                y = text_encoder(input_ids=tokens).last_hidden_state
-                mask = y_inputs["attention_mask"].bool()
+            for i, label in enumerate(labels):
+                if not os.path.exists(f"{args.features_path}/imagenet256_captions/{y_int}-{i}.npy"):
+                    y = [label]
+                    y_inputs = tokenizer(y, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt")
+                    tokens = y_inputs["input_ids"].to(device)
+                    y = text_encoder(input_ids=tokens).last_hidden_state
+                    mask = y_inputs["attention_mask"].bool()
                 
-                y = y.detach().cpu().numpy()
-                np.save(f"{args.features_path}/imagenet256_captions/{y_int}.npy", y)
-                mask = mask.detach().cpu().numpy()
-                np.save(f"{args.features_path}/imagenet256_masks/{y_int}.npy", mask)
+                    y = y.detach().cpu().numpy()
+                    np.save(f"{args.features_path}/imagenet256_captions/{y_int}-{i}.npy", y)
+                    mask = mask.detach().cpu().numpy()
+                    np.save(f"{args.features_path}/imagenet256_masks/{y_int}-{i}.npy", mask)
             
+            index = len(glob(f"{args.features_path}/imagenet256_features/{y_int}-*.npy"))
             x = x.detach().cpu().numpy()
-            np.save(f"{args.features_path}/imagenet256_features/{y_int}-{train_steps}.npy", x)
+            np.save(f"{args.features_path}/imagenet256_features/{y_int}-{index}.npy", x)
             
         train_steps += 1
         print(train_steps)
