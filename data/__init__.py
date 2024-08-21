@@ -2,6 +2,7 @@ import datasets
 import numpy as np
 import os
 import torch
+from glob import glob
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -40,8 +41,8 @@ class CustomDataset(Dataset):
         feature_file = self.features_files[idx]
 
         label_idx = int(os.path.splitext(feature_file)[0].split("-")[0])
-        caption_file = self.captions_files[label_idx]
-        mask_file = self.masks_files[label_idx]
+        caption_file = np.random.choice(filter(lambda x: x.startswith(f"{label_idx}-"), self.captions_files))
+        mask_file = caption_file
 
         features = np.load(os.path.join(self.features_dir, feature_file))
         captions = np.load(os.path.join(self.captions_dir, caption_file))
