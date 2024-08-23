@@ -19,6 +19,8 @@ This repository contains:
 
 ## Sampling
 
+![sample](sample.png)
+
 ```bash
 python sample.py --image_size 512 --seed 1
 ```
@@ -27,7 +29,11 @@ python sample.py --image_size 512 --seed 1
 python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model.pt
 ```
 
-## Training
+| GenTron Model | Train Steps | Image Resolution |
+|---------------|-------------|------------------|
+| [B/2](https://huggingface.co/lavinal712/GenTron-T2I-B-2-256) | 50000 | 256x256 |
+
+## Training T2I Model
 
 ### Preparation
 
@@ -35,14 +41,51 @@ python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model
 torchrun --nnodes=1 --nproc_per_node=1 extract_features.py --data_path /path/to/ImageNet/train --features_path /path/to/ImageNet/features
 ```
 
-### Training GenTron
+### Training
+
+Train GenTron-T2I model directly.
 
 ```bash
-accelerate launch --mixed_precision fp16 train.py --data_path /path/to/ImageNet/train
+accelerate launch --mixed_precision fp16 train.py --model GenTron-T2I-XL/2 --data_path /path/to/ImageNet/train
 ```
 
 ```bash
-accelerate launch --mixed_precision fp16 train_v2.py --features_path /path/to/ImageNet/features
+accelerate launch --multi_gpu --num_processes N --mixed_precision fp16 train.py --model GenTron-T2I-XL/2 --data_path /path/to/ImageNet/train
+```
+
+Train GenTron-T2I model with extracted features.
+
+```bash
+accelerate launch --mixed_precision fp16 train_v2.py --model GenTron-T2I-XL/2 --features_path /path/to/ImageNet/features
+```
+
+```bash
+accelerate launch --multi_gpu --num_processes N --mixed_precision fp16 train_v2.py --model GenTron-T2I-XL/2 --features_path /path/to/ImageNet/features
+```
+
+## Training T2V Model
+
+### Preparation
+
+WebVid-10M Datset.
+
+```
+Assumes webvid data is structured as follows.
+Webvid/
+    videos/
+        000001_000050/      ($page_dir)
+            1.mp4           (videoid.mp4)
+            ...
+            5000.mp4
+        ...
+```
+
+### Training
+
+Train GenTron-T2V model directly.
+
+```bash
+accelerate launch --multi_gpu --num_processes N --mixed_precision fp16 train_t2v.py --model GenTron-T2V-XL/2 --data_path /path/to/webvid/results_10M_train.csv -- data_dir /path/to/webvid
 ```
 
 ## Acknowledgments
