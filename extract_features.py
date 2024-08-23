@@ -17,6 +17,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from transformers import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM, CLIPTextModel
+from tqdm import tqdm
 
 from diffusion import create_diffusion
 from models import GenTron_models
@@ -145,8 +146,8 @@ def main(args=None):
         drop_last=True
     )
 
-    train_steps = 0
-    for x, y in loader:
+    index = 0
+    for x, y in tqdm(loader):
         x = x.to(device)
         y = y.to(device)
         y_int = y.item()
@@ -166,7 +167,10 @@ def main(args=None):
                     mask = mask.detach().cpu().numpy()
                     np.save(f"{args.features_path}/imagenet256_masks/{y_int}-{i}.npy", mask)
             
-            index = len(glob(f"{args.features_path}/imagenet256_features/{y_int}-*.npy"))
+            if not os.path.exists(f"{args.features_path}/imagenet256_features/{y_int}-{index}.npy"):
+                index = 0
+            else:
+                index += 1
             x = x.detach().cpu().numpy()
             np.save(f"{args.features_path}/imagenet256_features/{y_int}-{index}.npy", x)
             
