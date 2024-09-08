@@ -173,9 +173,6 @@ def main(args=None):
                 index += 1
             x = x.detach().cpu().numpy()
             np.save(f"{args.features_path}/imagenet256_features/{y_int}-{index}.npy", x)
-            
-        train_steps += 1
-        print(train_steps)
 
 
 if __name__ == "__main__":
