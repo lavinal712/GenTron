@@ -31,7 +31,7 @@ python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model
 
 | GenTron Model | Train Steps | Image Resolution |
 |---------------|-------------|------------------|
-| [B/2](https://huggingface.co/lavinal712/GenTron-T2I-B-2-256) | 50000 | 256x256 |
+| [B/2](https://huggingface.co/lavinal712/GenTron-T2I-B-2-256) | 150000 | 256x256 |
 
 ## Training T2I Model
 
