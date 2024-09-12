@@ -730,6 +730,15 @@ def GenTronT2I_XL_2(**kwargs):
 def GenTronT2I_G_2(**kwargs):
     return GenTronT2I(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
 
+def GenTronT2V_S_2(**kwargs):
+    return GenTronT2V(depth=12, hidden_size=384, patch_size=2, num_heads=6, **kwargs)
+
+def GenTronT2V_B_2(**kwargs):
+    return GenTronT2V(depth=12, hidden_size=768, patch_size=2, num_heads=12, **kwargs)
+
+def GenTronT2V_L_2(**kwargs):
+    return GenTronT2V(depth=24, hidden_size=1024, patch_size=2, num_heads=16, **kwargs)
+
 def GenTronT2V_XL_2(**kwargs):
     return GenTronT2V(depth=28, hidden_size=1152, patch_size=2, num_heads=16, **kwargs)
 
@@ -742,6 +751,9 @@ GenTron_models = {
     'GenTron-T2I-L/2': GenTronT2I_L_2,
     'GenTron-T2I-XL/2': GenTronT2I_XL_2,
     'GenTron-T2I-G/2': GenTronT2I_G_2,
+    'GenTron-T2V-S/2': GenTronT2V_S_2,
+    'GenTron-T2V-B/2': GenTronT2V_B_2,
+    'GenTron-T2V-L/2': GenTronT2V_L_2,
     'GenTron-T2V-XL/2': GenTronT2V_XL_2,
     'GenTron-T2V-G/2': GenTronT2V_G_2,
 }
