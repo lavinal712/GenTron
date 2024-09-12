@@ -19,6 +19,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from transformers import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM, CLIPTextModel
 
+from data.msrvtt import MSRVTT
 from data.webvid import WebVid
 from diffusion import create_diffusion
 from models import GenTron_models
@@ -53,7 +54,7 @@ def create_logger(logging_dir):
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--data_path", type=str, required=True)
+    parser.add_argument("--meta_path", type=str, required=True)
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--results_dir", type=str, default="results")
     parser.add_argument("--model", type=str, choices=list(GenTron_models.keys()), default="GenTron-T2V-XL/2")
@@ -118,7 +119,7 @@ def main(args=None):
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0)
 
     dataset = WebVid(
-        meta_path=args.data_path,
+        meta_path=args.meta_path,
         data_dir=args.data_dir,
         video_length=args.video_length,
         resolution=args.image_size,
