@@ -242,13 +242,13 @@ class GenTronT2VBlock(nn.Module):
             nn.Linear(hidden_size, 6 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c, y, t, mask=None, motion_free_mask=None):
+    def forward(self, x, c, y, b, mask=None, motion_free_mask=None):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn1(modulate(self.norm1(x), shift_msa, scale_msa))
         x = x + self.attn2(self.norm3(x), y, y, key_padding_mask=mask)[0]
-        x = rearrange(x, "(b t) n d -> (b n) t d", t=t)
+        x = rearrange(x, "(b t) n d -> (b n) t d", b=b)
         x = x + self.attn3(self.norm4(x), self.norm4(x), self.norm4(x), attn_mask=motion_free_mask)[0]
-        x = rearrange(x, "(b n) t d -> (b t) n d", t=t)
+        x = rearrange(x, "(b n) t d -> (b t) n d", b=b)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -510,7 +510,6 @@ class GenTronT2V(nn.Module):
         depth=28,
         num_heads=16,
         mlp_ratio=4.0,
-        num_frames=16,
         dropout_prob=0.1,
         learn_sigma=True,
         motion_free_prob=0.1,
@@ -521,7 +520,6 @@ class GenTronT2V(nn.Module):
         self.out_channels = in_channels * 2 if learn_sigma else in_channels
         self.patch_size = patch_size
         self.num_heads = num_heads
-        self.num_frames = num_frames
         self.motion_free_prob = motion_free_prob
 
         self.x_embedder = PatchEmbed(input_size, patch_size, in_channels, hidden_size)
@@ -579,27 +577,27 @@ class GenTronT2V(nn.Module):
         return imgs
 
     def forward(self, x, t, y, mask=None, motion_free_mask=None):
-        x = rearrange(x, "b f c h w -> (b f) c h w")
+        b, _, f, _, _ = x.shape
+        x = rearrange(x, "b c f h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
         t = self.t_embedder(t)
-        t = repeat(t, "b d -> (b f) d", f=self.num_frames) 
+        t = repeat(t, "b d -> (b f) d", f=f)
         y = self.y_embedder(y, self.training)
         mask_float = mask.float().unsqueeze(-1)
         y_pool = (y * mask_float).sum(dim=1) / mask_float.sum(dim=1)
-        y = repeat(y, "b l d -> (b f) l d", f=self.num_frames)
-        mask = repeat(mask, "b d -> (b f) d", f=self.num_frames)
-        y_pool = repeat(y_pool, "b d -> (b f) d", f=self.num_frames)
+        y = repeat(y, "b l d -> (b f) l d", f=f)
+        mask = repeat(mask, "b d -> (b f) d", f=f)
+        y_pool = repeat(y_pool, "b d -> (b f) d", f=f)
         c = t + y_pool
         for block in self.blocks:
             if motion_free_mask is None:
-                motion_free_mask = np.random.choice(
-                    [torch.eye(self.num_frames).bool(), torch.ones(self.num_frames, self.num_frames).bool()],
-                    p=[self.motion_free_prob, 1 - self.motion_free_prob],
-                )
-            x = block(x, c, y, self.num_frames, mask, motion_free_mask)
+                motion_free_mask = [torch.eye(f).bool(), torch.ones(f, f).bool()][
+                    np.random.choice([0, 1], p=[self.motion_free_prob, 1 - self.motion_free_prob])
+                ].to(x.device)
+            x = block(x, c, y, b, mask, motion_free_mask)
         x = self.final_layer(x, c)
         x = self.unpatchify(x)
-        x = rearrange(x, "(b f) c h w -> b f c h w", f=self.num_frames)
+        x = rearrange(x, "(b f) c h w -> b c f h w", f=f)
         return x
     
     def forward_with_cfg_and_mfg(self, x, t, y, cfg_scale, mfg_scale, mask=None, motion_free_mask=None):
@@ -733,10 +731,10 @@ def GenTronT2I_G_2(**kwargs):
     return GenTronT2I(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
 
 def GenTronT2V_XL_2(**kwargs):
-    return GenTronT2V(depth=28, hidden_size=1152, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
+    return GenTronT2V(depth=28, hidden_size=1152, patch_size=2, num_heads=16, **kwargs)
 
 def GenTronT2V_G_2(**kwargs):
-    return GenTronT2V(depth=48, hidden_size=1664, patch_size=2, num_heads=16, use_cross_attention=True, **kwargs)
+    return GenTronT2V(depth=48, hidden_size=1664, patch_size=2, num_heads=16, **kwargs)
 
 GenTron_models = {
     'GenTron-T2I-S/2': GenTronT2I_S_2,
