@@ -131,7 +131,7 @@ class WebVid(Dataset):
                 continue
     
         assert(frames.shape[0] == self.video_length),f"{len(frames)}, self.video_length={self.video_length}"
-        frames = torch.tensor(frames.asnumpy()).permute(0, 3, 1, 2).float()
+        frames = torch.tensor(frames.asnumpy()).permute(3, 0, 1, 2).float()
         
         if self.spatial_transform is not None:
             frames = self.spatial_transform(frames)
