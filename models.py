@@ -246,9 +246,9 @@ class GenTronT2VBlock(nn.Module):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn1(modulate(self.norm1(x), shift_msa, scale_msa))
         x = x + self.attn2(self.norm3(x), y, y, key_padding_mask=mask)[0]
-        x = rearrange(x, "(b t) n d -> (b n) t d", b=b)
+        x = rearrange(x, "(b t) n d -> (b n) t d", b=b).contiguous()
         x = x + self.attn3(self.norm4(x), self.norm4(x), self.norm4(x), attn_mask=motion_free_mask)[0]
-        x = rearrange(x, "(b n) t d -> (b t) n d", b=b)
+        x = rearrange(x, "(b n) t d -> (b t) n d", b=b).contiguous()
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -578,16 +578,16 @@ class GenTronT2V(nn.Module):
 
     def forward(self, x, t, y, mask=None, motion_free_mask=None):
         b, _, f, _, _ = x.shape
-        x = rearrange(x, "b c f h w -> (b f) c h w")
+        x = rearrange(x, "b c f h w -> (b f) c h w").contiguous()
         x = self.x_embedder(x) + self.pos_embed
         t = self.t_embedder(t)
-        t = repeat(t, "b d -> (b f) d", f=f)
+        t = repeat(t, "b d -> (b f) d", f=f).contiguous()
         y = self.y_embedder(y, self.training)
         mask_float = mask.float().unsqueeze(-1)
         y_pool = (y * mask_float).sum(dim=1) / mask_float.sum(dim=1)
-        y = repeat(y, "b l d -> (b f) l d", f=f)
-        mask = repeat(mask, "b d -> (b f) d", f=f)
-        y_pool = repeat(y_pool, "b d -> (b f) d", f=f)
+        y = repeat(y, "b l d -> (b f) l d", f=f).contiguous()
+        mask = repeat(mask, "b d -> (b f) d", f=f).contiguous()
+        y_pool = repeat(y_pool, "b d -> (b f) d", f=f).contiguous()
         c = t + y_pool
         for block in self.blocks:
             if motion_free_mask is None:
@@ -597,7 +597,7 @@ class GenTronT2V(nn.Module):
             x = block(x, c, y, b, mask, motion_free_mask)
         x = self.final_layer(x, c)
         x = self.unpatchify(x)
-        x = rearrange(x, "(b f) c h w -> b c f h w", f=f)
+        x = rearrange(x, "(b f) c h w -> b c f h w", f=f).contiguous()
         return x
     
     def forward_with_cfg_and_mfg(self, x, t, y, cfg_scale, mfg_scale, mask=None, motion_free_mask=None):
