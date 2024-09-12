@@ -111,3 +111,5 @@ accelerate launch --multi_gpu --num_processes N --mixed_precision fp16 train_t2v
 - [DiT](https://github.com/facebookresearch/DiT)
 - [fast-DiT](https://github.com/chuanyangjin/fast-DiT)
 - [PixArt-α](https://github.com/PixArt-alpha/PixArt-alpha)
+- [DynamiCrafter](https://github.com/Doubiiu/DynamiCrafter)
+- [CLIP4Clip](https://github.com/ArrowLuo/CLIP4Clip)
