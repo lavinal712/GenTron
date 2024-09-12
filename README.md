@@ -11,7 +11,10 @@
 This repository contains:
 
 * 🪐 A simple PyTorch [implementation](models.py) of Text-to-Image GenTron
+* 🪐 A simple PyTorch [implementation](models.py) of Text-to-Video GenTron
+* ⚡️ An ImageNet features [extract script](extract_features.py)
 * 🛸 A GenTron [training script](train.py)
+* 🛸 A GenTron [training script](train_v2.py) using stored features.
 
 ## Setup
 
