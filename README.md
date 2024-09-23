@@ -18,7 +18,11 @@ This repository contains:
 
 ## Setup
 
-[DiT](https://github.com/facebookresearch/DiT) and [PixArt-α](https://github.com/PixArt-alpha/PixArt-alpha)
+```bash
+conda create -n gentron python=3.10
+conda activate gentron
+pip install -r requirements.txt
+```
 
 ## Sampling
 
