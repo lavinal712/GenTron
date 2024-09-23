@@ -32,6 +32,10 @@ python sample.py --image_size 512 --seed 1
 python sample.py --model GenTron-T2I-XL/2 --image_size 256 --ckpt /path/to/model.pt
 ```
 
+```bash
+python sample_t2v.py --model GenTron-T2V-XL/2 --image_size 256 --ckpt /path/to/model.pt
+```
+
 | GenTron Model | Train Steps | Image Resolution |
 |---------------|-------------|------------------|
 | [B/2](https://huggingface.co/lavinal712/GenTron-T2I-B-2-256) | 150000 | 256x256 |
