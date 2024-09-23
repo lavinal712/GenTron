@@ -124,3 +124,12 @@ accelerate launch --multi_gpu --num_processes N --mixed_precision fp16 train_t2v
 - [PixArt-α](https://github.com/PixArt-alpha/PixArt-alpha)
 - [DynamiCrafter](https://github.com/Doubiiu/DynamiCrafter)
 - [CLIP4Clip](https://github.com/ArrowLuo/CLIP4Clip)
+
+## Citation
+
+@article{chen2023gentron,
+  title={Gentron: Delving deep into diffusion transformers for image and video generation},
+  author={Chen, Shoufa and Xu, Mengmeng and Ren, Jiawei and Cong, Yuren and He, Sen and Xie, Yanping and Sinha, Animesh and Luo, Ping and Xiang, Tao and Perez-Rua, Juan-Manuel},
+  journal={arXiv preprint arXiv:2312.04557},
+  year={2023}
+}
